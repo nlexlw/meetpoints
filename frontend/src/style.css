@@ -15,9 +15,9 @@ body {
   margin: 0;
   min-width: 320px;
   background:
-    radial-gradient(circle at top left, rgba(96, 165, 250, 0.22), transparent 28rem),
-    radial-gradient(circle at top right, rgba(168, 85, 247, 0.16), transparent 24rem),
-    #f3f5fb;
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.15), transparent 28rem),
+    radial-gradient(circle at top right, rgba(168, 85, 247, 0.12), transparent 24rem),
+    #f8fafc;
 }
 
 button,
@@ -177,7 +177,8 @@ a {
 .notice-area {
   display: grid;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding: 0 20px;
 }
 
 .notice {
@@ -209,14 +210,204 @@ a {
 
 .card {
   padding: 24px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
 }
 
 .card.wide {
   grid-column: 1 / -1;
+}
+
+/* Role Selection Styles */
+.role-selection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.role-card {
+  padding: 32px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #f8fafc, #ffffff);
+  border: 2px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.role-card:hover {
+  transform: translateY(-4px);
+  border-color: #cbd5e1;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+}
+
+.role-card.organizer {
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-color: #dbeafe;
+}
+
+.role-card.participant {
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+  border-color: #dcfce7;
+}
+
+.role-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.role-card h3 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  color: #1e293b;
+}
+
+.role-card p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Recommendation Deck Styles */
+.deck-container {
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 24px 0;
+}
+
+.recommendation-card {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.person-card.large {
+  width: 100%;
+  padding: 32px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #ffffff, #f8fafc);
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.1);
+}
+
+.deck-buttons {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  justify-content: center;
+}
+
+.deck-buttons button {
+  min-width: 140px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.deck-buttons button.large {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+}
+
+.deck-buttons button.secondary.large {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1e40af;
+}
+
+.deck-empty {
+  text-align: center;
+  padding: 48px 24px;
+  background: #f8fafc;
+  border-radius: 20px;
+  border: 2px dashed #cbd5e1;
+}
+
+.deck-empty p {
+  margin: 0 0 24px;
+  font-size: 18px;
+  color: #64748b;
+}
+
+/* Join Form Styles */
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.join-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.join-form input {
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.join-form input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.join-form button {
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.join-form button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+}
+
+.join-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Shared Tags Styles */
+.shared-tags {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.shared-tags p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #64748b;
 }
 
 .card h2 {
@@ -334,10 +525,16 @@ a {
   grid-template-columns: 1fr auto;
   gap: 16px;
   align-items: center;
-  padding: 18px;
-  border-radius: 22px;
-  background: #f8fafc;
+  padding: 20px;
+  border-radius: 20px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.person-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 .person-card p {
@@ -345,10 +542,16 @@ a {
 }
 
 .mini-card {
-  padding: 16px;
-  border-radius: 20px;
-  background: #f8fafc;
+  padding: 18px;
+  border-radius: 18px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.mini-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
 }
 
 .mini-card p {
