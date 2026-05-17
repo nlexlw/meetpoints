@@ -104,9 +104,14 @@ def get_db():
 @app.get(
     "/",
     tags=["Health"],
-    summary="Главная страница API",
+    summary="Главная страница приложения",
 )
 def root():
+    index_file = STATIC_DIR / "index.html"
+
+    if index_file.exists():
+        return FileResponse(index_file)
+
     return {
         "message": "MeetPoint API is running",
         "docs": "/docs",
