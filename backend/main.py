@@ -1,15 +1,21 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 import crud
 import models
 import schemas
 from database import Base, SessionLocal, engine
+
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 @asynccontextmanager
@@ -39,17 +45,13 @@ tags_metadata = [
         "name": "Contacts",
         "description": "Контакты, которые открываются только после принятого запроса.",
     },
-    {
-        "name": "Feedback",
-        "description": "Отзывы участников после мероприятия.",
-    },
 ]
 
 
 app = FastAPI(
-    title="Meetings API",
+    title="MeetPoint API",
     description="""
-Meetings — MVP-сервис для нетворкинга на мероприятиях.
+MeetPoint — MVP-сервис для нетворкинга на мероприятиях.
 
 Основной сценарий:
 1. Организатор создаёт мероприятие.
@@ -76,6 +78,20 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def strip_api_prefix(request, call_next):
+    """Allow frontend to call backend through /api in Docker deployment."""
+
+    path = request.scope.get("path", "")
+
+    if path.startswith("/api/"):
+        stripped_path = path[4:] or "/"
+        request.scope["path"] = stripped_path
+        request.scope["raw_path"] = stripped_path.encode()
+
+    return await call_next(request)
+
+
 def get_db():
     db = SessionLocal()
 
@@ -92,7 +108,7 @@ def get_db():
 )
 def root():
     return {
-        "message": "Meetings API is running",
+        "message": "MeetPoint API is running",
         "docs": "/docs",
         "health": "/health",
     }
@@ -320,14 +336,7 @@ def get_contacts(
     db: Session = Depends(get_db),
 ):
     return crud.get_contacts(db, participant_id)
-
-
-@app.post(
-    "/events/{event_id}/feedback",
-    response_model=schemas.EventFeedbackOut,
-    tags=["Feedback"],
-    summary="Оставить отзыв о мероприятии",
-)
+@app.post("/events/{event_id}/feedback", response_model=schemas.EventFeedbackOut)
 def create_feedback(
     event_id: int,
     feedback: schemas.EventFeedbackCreate,
@@ -355,12 +364,7 @@ def create_feedback(
     }
 
 
-@app.get(
-    "/events/{event_id}/feedback",
-    response_model=list[schemas.EventFeedbackOut],
-    tags=["Feedback"],
-    summary="Получить отзывы мероприятия",
-)
+@app.get("/events/{event_id}/feedback", response_model=list[schemas.EventFeedbackOut])
 def get_feedback(event_id: int, db: Session = Depends(get_db)):
     feedbacks = crud.get_event_feedback(db, event_id)
 
@@ -386,3 +390,25 @@ def get_feedback(event_id: int, db: Session = Depends(get_db)):
         )
 
     return result
+
+# Frontend static files for Docker/Spirit deployment.
+# In local development STATIC_DIR usually does not exist, so API-only mode stays unchanged.
+if STATIC_DIR.exists():
+    assets_dir = STATIC_DIR / "assets"
+
+    if assets_dir.exists():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=assets_dir),
+            name="assets",
+        )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        requested_file = STATIC_DIR / full_path
+        index_file = STATIC_DIR / "index.html"
+
+        if requested_file.is_file():
+            return FileResponse(requested_file)
+
+        return FileResponse(index_file)
