@@ -30,9 +30,22 @@ backend_smoke_test:
     - python -c "from main import app; print('Backend import OK:', app.title)"
     - python -c "from database import Base, engine; Base.metadata.create_all(bind=engine); print('Database schema OK')"
 
-deploy_placeholder:
+deploy_to_spirit:
   stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client rsync
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+    - chmod 600 ~/.ssh/deploy_key
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
   script:
-    - echo "Deploy is handled by DevPlatform / Spirit"
+    - test -n "$DEPLOY_HOST"
+    - test -n "$DEPLOY_USER"
+    - test -n "$DEPLOY_KEY"
+    - rsync -az --delete --exclude ".git" --exclude "backend/venv" --exclude "frontend/node_modules" ./ "$DEPLOY_USER@$DEPLOY_HOST:~/meetpoint/"
+    - ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "cd ~/meetpoint && docker compose down && docker compose up -d --build"
   rules:
-    - if: '$CI_COMMIT_BRANCH == "product-flow-v1"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: manual
+    - when: never
