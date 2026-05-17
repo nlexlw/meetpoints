@@ -1,8 +1,8 @@
 import json
-from typing import Iterable
+import secrets
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 import models
@@ -13,11 +13,11 @@ def serialize_tags(tags: list[str] | None) -> str:
     if not tags:
         return "[]"
 
-    cleaned = []
-    seen = set()
+    cleaned: list[str] = []
+    seen: set[str] = set()
 
     for tag in tags:
-        value = tag.strip().lower()
+        value = str(tag).strip().lower()
         if value and value not in seen:
             cleaned.append(value)
             seen.add(value)
@@ -89,6 +89,14 @@ def event_to_read(event: models.Event) -> schemas.EventRead:
     )
 
 
+def event_to_admin_read(event: models.Event) -> schemas.EventAdminRead:
+    public_event = event_to_read(event)
+    return schemas.EventAdminRead(
+        **public_event.model_dump(),
+        admin_token=event.admin_token,
+    )
+
+
 def participant_to_public(participant: models.Participant) -> schemas.ParticipantRead:
     return schemas.ParticipantRead(
         id=participant.id,
@@ -129,31 +137,35 @@ def request_to_read(request: models.MeetRequest) -> schemas.MeetRequestRead:
     )
 
 
-def create_event(db: Session, event_data: schemas.EventCreate) -> schemas.EventRead:
+def create_event(db: Session, event_data: schemas.EventCreate) -> schemas.EventAdminRead:
     event = models.Event(
-        title=event_data.title,
+        title=event_data.title.strip(),
         description=event_data.description,
         location=event_data.location,
         organizer_name=event_data.organizer_name,
         tags=serialize_tags(event_data.tags),
+        admin_token=secrets.token_urlsafe(24),
     )
 
     db.add(event)
     db.commit()
     db.refresh(event)
 
-    return event_to_read(event)
+    return event_to_admin_read(event)
 
 
-def close_event_registration(db: Session, event_id: int) -> schemas.EventRead:
+def close_event_registration(db: Session, event_id: int, admin_token: str):
     event = get_event_or_404(db, event_id)
+
+    if not event.admin_token or event.admin_token != admin_token:
+        raise PermissionError("Only event organizer can close registration")
 
     event.is_registration_open = False
 
     db.commit()
     db.refresh(event)
 
-    return event_to_read(event)
+    return event
 
 
 def create_participant(
@@ -169,16 +181,48 @@ def create_participant(
             detail="Registration is closed",
         )
 
+    telegram = participant_data.telegram.strip() if participant_data.telegram else ""
+    email = participant_data.email.strip().lower() if participant_data.email else ""
+    linkedin = participant_data.linkedin.strip().lower() if participant_data.linkedin else ""
+
+    duplicate_filters = []
+
+    if telegram:
+        duplicate_filters.append(
+            func.lower(models.Participant.telegram) == telegram.lower()
+        )
+
+    if email:
+        duplicate_filters.append(func.lower(models.Participant.email) == email)
+
+    if linkedin:
+        duplicate_filters.append(
+            func.lower(models.Participant.linkedin) == linkedin
+        )
+
+    if duplicate_filters:
+        existing_participant = (
+            db.query(models.Participant)
+            .filter(
+                models.Participant.event_id == event.id,
+                or_(*duplicate_filters),
+            )
+            .first()
+        )
+
+        if existing_participant:
+            return participant_to_public(existing_participant)
+
     participant = models.Participant(
         event_id=event.id,
-        name=participant_data.name,
+        name=participant_data.name.strip(),
         bio=participant_data.bio,
         role=participant_data.role,
         company=participant_data.company,
         tags=serialize_tags(participant_data.tags),
-        telegram=participant_data.telegram,
-        email=participant_data.email,
-        linkedin=participant_data.linkedin,
+        telegram=telegram,
+        email=email,
+        linkedin=linkedin,
     )
 
     db.add(participant)
@@ -257,9 +301,7 @@ def get_recommendations(
             )
         )
 
-    recommendations.sort(
-        key=lambda item: (-item.match_score, item.name.lower())
-    )
+    recommendations.sort(key=lambda item: (-item.match_score, item.name.lower()))
 
     return recommendations
 
@@ -479,4 +521,59 @@ def get_event_stats(db: Session, event_id: int) -> schemas.EventStats:
         skipped_requests_count=skipped_requests_count,
         matches_count=accepted_requests_count,
         is_registration_open=event.is_registration_open,
+    )
+
+
+def create_event_feedback(db: Session, event_id: int, feedback: schemas.EventFeedbackCreate):
+    get_event_or_404(db, event_id)
+
+    participant = (
+        db.query(models.Participant)
+        .filter(
+            models.Participant.id == feedback.participant_id,
+            models.Participant.event_id == event_id,
+        )
+        .first()
+    )
+
+    if not participant:
+        raise ValueError("Participant not found in this event")
+
+    existing_feedback = (
+        db.query(models.EventFeedback)
+        .filter(
+            models.EventFeedback.event_id == event_id,
+            models.EventFeedback.participant_id == feedback.participant_id,
+        )
+        .first()
+    )
+
+    if existing_feedback:
+        existing_feedback.rating = feedback.rating
+        existing_feedback.text = feedback.text
+        db.commit()
+        db.refresh(existing_feedback)
+        return existing_feedback
+
+    db_feedback = models.EventFeedback(
+        event_id=event_id,
+        participant_id=feedback.participant_id,
+        rating=feedback.rating,
+        text=feedback.text,
+    )
+
+    db.add(db_feedback)
+    db.commit()
+    db.refresh(db_feedback)
+
+    return db_feedback
+
+
+def get_event_feedback(db: Session, event_id: int):
+    get_event_or_404(db, event_id)
+    return (
+        db.query(models.EventFeedback)
+        .filter(models.EventFeedback.event_id == event_id)
+        .order_by(models.EventFeedback.created_at.desc())
+        .all()
     )

@@ -50,7 +50,8 @@ class EventRead(BaseModel):
     is_registration_open: bool
     created_at: datetime
 
-
+class EventAdminRead(EventRead):
+    admin_token: str | None = None
 class EventShare(BaseModel):
     event_id: int
     join_url: str
@@ -174,4 +175,20 @@ class IncomingRequestRead(BaseModel):
     event_id: int
     from_participant: ParticipantRead
     status: Literal["pending", "accepted", "skipped"]
+    created_at: datetime
+class EventFeedbackCreate(BaseModel):
+    participant_id: int
+    rating: int
+    text: str
+
+
+class EventFeedbackOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    participant_id: int
+    participant_name: str
+    rating: int
+    text: str
     created_at: datetime

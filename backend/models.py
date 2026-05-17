@@ -15,6 +15,7 @@ class Event(Base):
     description = Column(Text, nullable=True)
     location = Column(String(160), nullable=True)
     organizer_name = Column(String(120), nullable=True)
+    admin_token = Column(String(120), nullable=True, index=True)
 
     # SQLite не хранит list[str] напрямую, поэтому теги храним JSON-строкой.
     tags = Column(Text, nullable=False, default="[]")
@@ -116,3 +117,19 @@ class MeetRequest(Base):
         foreign_keys=[to_participant_id],
         back_populates="received_requests",
     )
+    
+    
+class EventFeedback(Base):
+    __tablename__ = "event_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    participant_id = Column(Integer, ForeignKey("participants.id"), nullable=False)
+
+    rating = Column(Integer, nullable=False)
+    text = Column(Text, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    event = relationship("Event")
+    participant = relationship("Participant")

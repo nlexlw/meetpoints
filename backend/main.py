@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -39,13 +39,17 @@ tags_metadata = [
         "name": "Contacts",
         "description": "Контакты, которые открываются только после принятого запроса.",
     },
+    {
+        "name": "Feedback",
+        "description": "Отзывы участников после мероприятия.",
+    },
 ]
 
 
 app = FastAPI(
-    title="MeetPoint API",
+    title="Meetings API",
     description="""
-MeetPoint — MVP-сервис для нетворкинга на мероприятиях.
+Meetings — MVP-сервис для нетворкинга на мероприятиях.
 
 Основной сценарий:
 1. Организатор создаёт мероприятие.
@@ -88,7 +92,7 @@ def get_db():
 )
 def root():
     return {
-        "message": "MeetPoint API is running",
+        "message": "Meetings API is running",
         "docs": "/docs",
         "health": "/health",
     }
@@ -107,11 +111,11 @@ def health():
 
 @app.post(
     "/events",
-    response_model=schemas.EventRead,
+    response_model=schemas.EventAdminRead,
     status_code=201,
     tags=["Events"],
     summary="Создать мероприятие",
-    description="Создаёт мероприятие для нетворкинга. После создания можно получить ссылку/QR для участников.",
+    description="Создаёт мероприятие для нетворкинга. Только этот ответ возвращает admin_token организатора.",
 )
 def create_event(
     event_data: schemas.EventCreate,
@@ -139,13 +143,25 @@ def get_event(
     response_model=schemas.EventRead,
     tags=["Events"],
     summary="Закрыть регистрацию на мероприятие",
-    description="После закрытия регистрации новые участники не смогут присоединиться к мероприятию.",
+    description="Закрыть регистрацию может только организатор с X-Admin-Token.",
 )
 def close_event_registration(
     event_id: int,
+    x_admin_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    return crud.close_event_registration(db, event_id)
+    if not x_admin_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin token is required",
+        )
+
+    try:
+        event = crud.close_event_registration(db, event_id, x_admin_token)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error))
+
+    return crud.event_to_read(event)
 
 
 @app.get(
@@ -304,3 +320,69 @@ def get_contacts(
     db: Session = Depends(get_db),
 ):
     return crud.get_contacts(db, participant_id)
+
+
+@app.post(
+    "/events/{event_id}/feedback",
+    response_model=schemas.EventFeedbackOut,
+    tags=["Feedback"],
+    summary="Оставить отзыв о мероприятии",
+)
+def create_feedback(
+    event_id: int,
+    feedback: schemas.EventFeedbackCreate,
+    db: Session = Depends(get_db),
+):
+    try:
+        db_feedback = crud.create_event_feedback(db, event_id, feedback)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+
+    participant = (
+        db.query(models.Participant)
+        .filter(models.Participant.id == db_feedback.participant_id)
+        .first()
+    )
+
+    return {
+        "id": db_feedback.id,
+        "event_id": db_feedback.event_id,
+        "participant_id": db_feedback.participant_id,
+        "participant_name": participant.name if participant else "Участник",
+        "rating": db_feedback.rating,
+        "text": db_feedback.text,
+        "created_at": db_feedback.created_at,
+    }
+
+
+@app.get(
+    "/events/{event_id}/feedback",
+    response_model=list[schemas.EventFeedbackOut],
+    tags=["Feedback"],
+    summary="Получить отзывы мероприятия",
+)
+def get_feedback(event_id: int, db: Session = Depends(get_db)):
+    feedbacks = crud.get_event_feedback(db, event_id)
+
+    result = []
+
+    for feedback in feedbacks:
+        participant = (
+            db.query(models.Participant)
+            .filter(models.Participant.id == feedback.participant_id)
+            .first()
+        )
+
+        result.append(
+            {
+                "id": feedback.id,
+                "event_id": feedback.event_id,
+                "participant_id": feedback.participant_id,
+                "participant_name": participant.name if participant else "Участник",
+                "rating": feedback.rating,
+                "text": feedback.text,
+                "created_at": feedback.created_at,
+            }
+        )
+
+    return result

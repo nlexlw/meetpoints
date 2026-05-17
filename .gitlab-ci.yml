@@ -6,7 +6,33 @@ stages:
   - test
   - deploy
 
-test:
-  stage: test
+frontend_build:
+  stage: build
+  image: node:22
+  before_script:
+    - cd frontend
+    - npm ci
   script:
-    - echo 'ok'
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist
+    expire_in: 1 week
+
+backend_smoke_test:
+  stage: test
+  image: python:3.12
+  before_script:
+    - cd backend
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - python -c "from main import app; print('Backend import OK:', app.title)"
+    - python -c "from database import Base, engine; Base.metadata.create_all(bind=engine); print('Database schema OK')"
+
+deploy_placeholder:
+  stage: deploy
+  script:
+    - echo "Deploy is handled by DevPlatform / Spirit"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "product-flow-v1"'
